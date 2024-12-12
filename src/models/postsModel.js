@@ -1,34 +1,38 @@
-import 'dotenv/config'
+import 'dotenv/config';
+import { ObjectId } from 'mongodb';
+import conectarAoBanco from '../config/dbConfig.js'; // Conectando ao banco
 
-import { ObjectId } from 'mongodb'
-import conectarAoBanco from '../config/dbConfig.js'
-const conexao = await conectarAoBanco(process.env.STRING_CONEXAO)
+let conexao;
+
+async function getConexao() {
+    if (!conexao) {
+        conexao = await conectarAoBanco(); // Estabelecendo a conexão
+    }
+    return conexao; // Retorna a conexão estabelecida
+}
 
 export async function getTodosPosts() {
-    const db = conexao.db("imersao-instabytes")
-    const colecao = db.collection("posts")
-    return colecao.find().toArray()
+    const db = await getConexao(); // Obtendo a conexão ao banco
+    const colecao = db.collection("posts"); // Acessando a coleção "posts"
+    return colecao.find().toArray(); // Retorna todos os posts
 }
 
 export async function criarPost(novoPost) {
-    const db = conexao.db("imersao-instabytes")
-    const colecao = db.collection("posts")
-    return colecao.insertOne(novoPost)
-
+    const db = await getConexao(); // Obtendo a conexão ao banco
+    const colecao = db.collection("posts"); // Acessando a coleção "posts"
+    return colecao.insertOne(novoPost); // Inserindo um novo post
 }
 
 export async function atualizarPost(id, novoPost) {
-    const db = conexao.db("imersao-instabytes")
-    const colecao = db.collection("posts")
-    const obgID = ObjectId.createFromHexString(id)  // transformando id para formato do mongo
-    return colecao.updateOne({ _id: new ObjectId(obgID) }, { $set: novoPost })  // _id: identifica o elemento, $set: dados que serao atualizados
-
+    const db = await getConexao(); // Obtendo a conexão ao banco
+    const colecao = db.collection("posts"); // Acessando a coleção "posts"
+    const obgID = ObjectId.createFromHexString(id); // Convertendo ID para o formato do MongoDB
+    return colecao.updateOne({ _id: new ObjectId(obgID) }, { $set: novoPost }); // Atualizando o post
 }
 
-// deletar um post por ID
 export async function deletarPost(id) {
-    const db = conexao.db("imersao-instabytes");
-    const colecao = db.collection("posts");
-    const objID = ObjectId.createFromHexString(id); // Criando ObjectId a partir da string
-    return colecao.deleteOne({ _id: objID });
+    const db = await getConexao(); // Obtendo a conexão ao banco
+    const colecao = db.collection("posts"); // Acessando a coleção "posts"
+    const objID = ObjectId.createFromHexString(id); // Convertendo ID para o formato do MongoDB
+    return colecao.deleteOne({ _id: objID }); // Deletando o post
 }

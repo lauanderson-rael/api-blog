@@ -1,0 +1,13 @@
+Usuário criado com sucesso! new ObjectId('675b1e5061c38eeedc18ddca')
+
+
+
+
+# String de Conexão com o MongoDB Atlas
+STRING_CONEXAO=mongodb+srv://lauanderson:TZw7Scx8FeDANtcD@cluster0-alura.jwftl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0-alura
+
+# Chave secreta do JWT
+JWT_SECRET=mySuperSecretKey1234!@45
+
+# Porta do servidor (opcional, você pode configurar para 3000 ou outra porta)
+PORT=3000

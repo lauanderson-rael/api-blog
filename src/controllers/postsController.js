@@ -1,12 +1,36 @@
 import { getTodosPosts, criarPost, atualizarPost, deletarPost } from "../models/postsModel.js"
 import fs from 'fs'
 import gerarDescricaoComGemini from "../services/geminiService.js"
-
+import conectarAoBanco from "../config/dbConfig.js"
+import bcrypt from 'bcryptjs'; 
 
 export async function listarPosts(req, res) {
     const posts = await getTodosPosts()
     res.status(200).json(posts)
 }
+/// new
+export async function verificarUsuario(username, password) {
+    const db = await conectarAoBanco();
+    const usuarios = db.collection('usuarios');
+    console.log("Buscando usuário:", username); // Adicione isto para verificar se o username está correto
+    const usuario = await usuarios.findOne({ username });
+
+    if (!usuario) {
+        console.log("Usuário não encontrado!"); // Adicione para verificar se o usuário foi encontrado
+        return null;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, usuario.password);
+    console.log("Validação da senha:", isPasswordValid); // Adicione para verificar se a senha está correta
+    if (isPasswordValid) {
+        return usuario;
+    } else {
+        return null;
+    }
+}
+
+/// new
+
 
 
 

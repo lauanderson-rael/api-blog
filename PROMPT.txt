@@ -1,0 +1,241 @@
+estrutura do meu projeto, api de posts para meu blog.
+
+/src
+  /controllers
+    - postController.js
+  /models
+    - postModel.js
+  /routes
+    - postRoutes.js
+  /config
+    - dbConfig.js
+- server.js
+
+arquivos do projeto
+
+server.js:
+import express from "express";
+import routes from "./src/routes/postsRoutes.js";
+
+const app = express();
+app.use(express.static("uploads")) // tudo que tiver nessa pasta, sera acessado
+routes(app)
+
+app.listen(process.env.PORT, () => {
+    console.log("servidor rodando!")
+});
+
+
+adConfig.js:
+import { MongoClient } from 'mongodb';
+
+export default async function conectarAoBanco(stringConexao) {
+    let mongoClient;
+
+    try {
+        mongoClient = new MongoClient(stringConexao);
+        console.log('Conectando ao cluster do banco de dados...');
+        await mongoClient.connect();
+        console.log('Conectado ao MongoDB Atlas com sucesso!');
+
+        return mongoClient;
+    } catch (erro) {
+        console.error('Falha na conexão com o banco!', erro);
+        process.exit();
+    }
+}
+
+
+postController.js:
+import { getTodosPosts, criarPost, atualizarPost, deletarPost } from "../models/postsModel.js"
+import fs from 'fs'
+import gerarDescricaoComGemini from "../services/geminiService.js"
+
+
+export async function listarPosts(req, res) {
+    const posts = await getTodosPosts()
+    res.status(200).json(posts)
+}
+
+
+
+export async function postarNovoPost(req, res) {
+    const novopost = req.body;
+    try {
+        const postCriado = await criarPost(novopost)
+        res.status(200).json(postCriado)
+    } catch (error) {
+        console.log(error.message)
+        res.status(500).json({ "Erro": "Falha na requisição!" })
+    }
+}
+
+
+
+export async function uploadImagem(req, res) {
+    const id = req.params.id
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const novopost = {
+        titulo: "",
+        descricao: "",
+        imgUrl: baseUrl + "/" + "???" + ".png",
+        alt: "",
+        link: ""
+    }
+
+    try {
+        const postCriado = await criarPost(novopost)
+        const imagemAtualizada = `uploads/${postCriado.insertedId}.png`
+        fs.renameSync(req.file.path, imagemAtualizada)
+        res.status(200).json(postCriado)
+    } catch (error) {
+        console.log(error.message)
+        res.status(500).json({ "Erro": "Falha na requisição!" })
+    }
+}
+
+
+
+export async function atualizarNovoPost(req, res) {
+    const id = req.params.id
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const urlImagem = `${baseUrl}/${id}.png`
+
+    try {
+        const imgBuffer = fs.readFileSync(`uploads/${id}.png`)
+        const post = {
+            imgUrl: urlImagem,
+            descricao: req.body.descricao,
+            titulo: req.body.titulo,
+            link: req.body.link,
+            alt: req.body.alt
+        }
+
+        const postCriado = await atualizarPost(id, post)
+        res.status(200).json(postCriado)
+    } catch (error) {
+        console.log(error.message)
+        res.status(500).json({ "Erro": "Falha na requisição!" })
+    }
+}
+
+
+
+export async function deletarPostPorId(req, res) {
+    const id = req.params.id;
+    try {
+        const resultado = await deletarPost(id);
+        if (resultado.deletedCount === 0) {
+            return res.status(404).json({ mensagem: 'Post não encontrado!' });
+        }
+        res.status(200).json({ mensagem: 'Post deletado com sucesso!' });
+    } catch (error) {
+        console.log(error.message);
+        res.status(500).json({ "Erro": "Falha na requisição!" });
+    }
+}
+
+
+postModel.js:
+import 'dotenv/config'
+
+import { ObjectId } from 'mongodb'
+import conectarAoBanco from '../config/dbConfig.js'
+const conexao = await conectarAoBanco(process.env.STRING_CONEXAO)
+
+export async function getTodosPosts() {
+    const db = conexao.db("imersao-instabytes")
+    const colecao = db.collection("posts")
+    return colecao.find().toArray()
+}
+
+export async function criarPost(novoPost) {
+    const db = conexao.db("imersao-instabytes")
+    const colecao = db.collection("posts")
+    return colecao.insertOne(novoPost)
+
+}
+
+export async function atualizarPost(id, novoPost) {
+    const db = conexao.db("imersao-instabytes")
+    const colecao = db.collection("posts")
+    const obgID = ObjectId.createFromHexString(id)  // transformando id para formato do mongo
+    return colecao.updateOne({ _id: new ObjectId(obgID) }, { $set: novoPost })  // _id: identifica o elemento, $set: dados que serao atualizados
+
+}
+
+// deletar um post por ID
+export async function deletarPost(id) {
+    const db = conexao.db("imersao-instabytes");
+    const colecao = db.collection("posts");
+    const objID = ObjectId.createFromHexString(id); // Criando ObjectId a partir da string
+    return colecao.deleteOne({ _id: objID });
+}
+
+
+postRoutes.js:
+import express from 'express'
+import multer from 'multer';
+import cors from 'cors'
+import jwt from 'jsonwebtoken';
+import { verificarUsuario } from '../config/dbConfig.js';
+import { atualizarNovoPost, deletarPostPorId, listarPosts, postarNovoPost, uploadImagem } from '../controllers/postsController.js';
+
+// avisar que vamos receber requisicoes de uma link externo
+const corsOptions = {
+    origin: "*", // Permite qualquer origem
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 200 // Corrigido o typo de "optiosSuccessStatus" para "optionsSuccessStatus"
+}
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/');
+
+    },
+    filename: function (req, file, cb) {
+        cb(null, file.originalname);
+    }
+})
+
+const upload = multer({ dest: './uploads', storage })
+
+const routes = (app) => {
+    app.use(express.json())
+    app.use(cors(corsOptions))
+    app.use(express.urlencoded({ extended: true})) // interpretar formularios
+    app.use('/uploads', express.static('uploads'))
+
+    app.get("/posts", listarPosts);
+    app.post("/posts", postarNovoPost)
+    app.post("/upload", upload.single("imagem"), uploadImagem)
+
+    app.put("/upload/:id", atualizarNovoPost)
+
+    app.delete("/delete/:id", deletarPostPorId)
+
+    app.post('/login', async (req, res) => {
+        const { username, password } = req.body;
+    
+        try {
+            const usuario = await verificarUsuario(username, password);
+    
+            if (!usuario) {
+                return res.status(401).json({ message: 'Autenticação falhou' });
+            }
+    
+            // Gera o token JWT
+            const payload = { sub: usuario._id, name: usuario.username };
+            const token = jwt.sign(payload, 'your_secret_key', { expiresIn: '1h' });
+    
+            return res.json({ token: `Bearer ${token}` });
+        } catch (err) {
+            return res.status(500).json({ message: 'Erro interno no servidor' });
+        }
+    });
+}
+
+export default routes;
+
+
