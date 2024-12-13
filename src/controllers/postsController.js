@@ -1,8 +1,7 @@
 import { getTodosPosts, criarPost, atualizarPost, deletarPost } from "../models/postsModel.js"
 import fs from 'fs'
-//import gerarDescricaoComGemini from "../services/geminiService.js"
-import conectarAoBanco from "../config/dbConfig.js"
-import bcrypt from 'bcryptjs'; 
+import conectarAoBanco, { conexao } from "../config/dbConfig.js"
+import bcrypt from 'bcryptjs';
 
 export async function listarPosts(req, res) {
     const posts = await getTodosPosts()
@@ -10,7 +9,7 @@ export async function listarPosts(req, res) {
 }
 /// new
 export async function verificarUsuario(username, password) {
-    const db = await conectarAoBanco();
+    const db = conexao
     const usuarios = db.collection('usuarios');
     console.log("Buscando usuário:", username); // Adicione isto para verificar se o username está correto
     const usuario = await usuarios.findOne({ username });

@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { MongoClient } from 'mongodb';
 
-let conexao;
+export let conexao;
 
 async function conectarAoBanco() {
     if (!conexao) {
