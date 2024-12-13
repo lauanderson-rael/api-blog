@@ -1,6 +1,6 @@
 import { getTodosPosts, criarPost, atualizarPost, deletarPost } from "../models/postsModel.js"
 import fs from 'fs'
-import gerarDescricaoComGemini from "../services/geminiService.js"
+//import gerarDescricaoComGemini from "../services/geminiService.js"
 import conectarAoBanco from "../config/dbConfig.js"
 import bcrypt from 'bcryptjs'; 
 
@@ -30,8 +30,6 @@ export async function verificarUsuario(username, password) {
 }
 
 /// new
-
-
 
 
 export async function postarNovoPost(req, res) {

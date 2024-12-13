@@ -107,11 +107,10 @@ const routes = (app) => {
             // Gera o token JWT
             const payload = { sub: usuario._id, name: usuario.username };
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
-    
             // Verifica se o token foi gerado corretamente
             console.log("Token gerado:", token);
-    
             return res.json({ token: `Bearer ${token}` });
+            
         } catch (err) {
             console.error("Erro ao gerar token:", err);
             return res.status(500).json({ message: 'Erro interno no servidor' });
