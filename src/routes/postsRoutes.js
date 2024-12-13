@@ -108,7 +108,7 @@ const routes = (app) => {
             const payload = { sub: usuario._id, name: usuario.username };
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
             // Verifica se o token foi gerado corretamente
-            console.log("Token gerado:", token);
+            console.log("Token gerado com sucesso");
             return res.json({ token: `Bearer ${token}` });
             
         } catch (err) {
