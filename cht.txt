@@ -1,0 +1,298 @@
+dbConfig:
+import bcrypt from 'bcryptjs';
+import { MongoClient } from 'mongodb';
+
+export let conexao;
+
+async function conectarAoBanco() {
+    if (!conexao) {
+        const client = new MongoClient(process.env.STRING_CONEXAO);
+        await client.connect();
+        conexao = client.db('imersao-instabytes'); // Definindo o banco de dados
+    }
+    console.log("conectado ao banco")
+    return conexao; // Retorna a conexão ao banco de dados
+}
+
+export async function verificarUsuario(username, password) {
+    const db = await conectarAoBanco(); // Aguardando a conexão com o banco
+    const usuarios = db.collection('usuarios'); // Defina a coleção de usuários
+    const usuario = await usuarios.findOne({ username }); // Encontrando o usuário
+
+    if (!usuario) return null;
+
+    const isPasswordValid = await bcrypt.compare(password, usuario.password); // Verificando a senha
+    if (isPasswordValid) {
+        return usuario; // Retorna o usuário se a senha for válida
+    } else {
+        return null;
+    }
+}
+
+export default conectarAoBanco; // Exportando a função de conexão
+
+
+
+passportConfig:
+import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
+import { MongoClient } from 'mongodb';
+import dotenv from 'dotenv';
+import conectarAoBanco from './dbConfig.js';
+import { conexao } from './dbConfig.js';
+dotenv.config();
+
+const options = {
+    jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+    secretOrKey: process.env.JWT_SECRET, // Coloque sua chave secreta aqui
+};
+
+export function configurePassport(passport) {
+    passport.use(
+        new JwtStrategy(options, async (jwt_payload, done) => {
+            try {
+                // const client = new MongoClient(process.env.STRING_CONEXAO);
+                // await client.connect();
+                const db = conexao
+                const usuario = await db.collection('usuarios').findOne({ _id: jwt_payload.sub });
+
+                if (usuario) {
+                    return done(null, usuario);
+                } else {
+                    return done(null, false);
+                }
+            } catch (error) {
+                return done(error, false);
+            }
+        })
+    );
+}
+
+
+postController:
+import { getTodosPosts, criarPost, atualizarPost, deletarPost } from "../models/postsModel.js"
+import fs from 'fs'
+import conectarAoBanco, { conexao } from "../config/dbConfig.js"
+import bcrypt from 'bcryptjs';
+
+export async function listarPosts(req, res) {
+    const posts = await getTodosPosts()
+    res.status(200).json(posts)
+}
+/// new
+export async function verificarUsuario(username, password) {
+    const db = conexao
+    const usuarios = db.collection('usuarios');
+    console.log("Buscando usuário:", username); // Adicione isto para verificar se o username está correto
+    const usuario = await usuarios.findOne({ username });
+
+    if (!usuario) {
+        console.log("Usuário não encontrado!"); // Adicione para verificar se o usuário foi encontrado
+        return null;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, usuario.password);
+    console.log("Validação da senha:", isPasswordValid); // Adicione para verificar se a senha está correta
+    if (isPasswordValid) {
+        return usuario;
+    } else {
+        return null;
+    }
+}
+
+/// new
+
+
+export async function postarNovoPost(req, res) {
+    const novopost = req.body;
+    try {
+        const postCriado = await criarPost(novopost)
+        res.status(200).json(postCriado)
+    } catch (error) {
+        console.log(error.message)
+        res.status(500).json({ "Erro": "Falha na requisição!" })
+    }
+}
+
+
+
+export async function uploadImagem(req, res) {
+    const id = req.params.id
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const novopost = {
+        titulo: "",
+        descricao: "",
+        imgUrl: baseUrl + "/" + "???" + ".png",
+        alt: "",
+        link: ""
+    }
+
+    try {
+        const postCriado = await criarPost(novopost)
+        const imagemAtualizada = `uploads/${postCriado.insertedId}.png`
+        fs.renameSync(req.file.path, imagemAtualizada)
+        res.status(200).json(postCriado)
+    } catch (error) {
+        console.log(error.message)
+        res.status(500).json({ "Erro": "Falha na requisição!" })
+    }
+}
+
+
+
+export async function atualizarNovoPost(req, res) {
+    const id = req.params.id
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const urlImagem = `${baseUrl}/${id}.png`
+
+    try {
+        const imgBuffer = fs.readFileSync(`uploads/${id}.png`)
+        const post = {
+            imgUrl: urlImagem,
+            descricao: req.body.descricao,
+            titulo: req.body.titulo,
+            link: req.body.link,
+            alt: req.body.alt
+        }
+
+        const postCriado = await atualizarPost(id, post)
+        res.status(200).json(postCriado)
+    } catch (error) {
+        console.log(error.message)
+        res.status(500).json({ "Erro": "Falha na requisição!" })
+    }
+}
+
+
+
+export async function deletarPostPorId(req, res) {
+    const id = req.params.id;
+    try {
+        const resultado = await deletarPost(id);
+        if (resultado.deletedCount === 0) {
+            return res.status(404).json({ mensagem: 'Post não encontrado!' });
+        }
+        res.status(200).json({ mensagem: 'Post deletado com sucesso!' });
+    } catch (error) {
+        console.log(error.message);
+        res.status(500).json({ "Erro": "Falha na requisição!" });
+    }
+}
+
+
+postModels:
+import 'dotenv/config';
+import { ObjectId } from 'mongodb';
+import conectarAoBanco from '../config/dbConfig.js'; // Conectando ao banco
+
+let conexao;
+
+async function getConexao() {
+    if (!conexao) {
+        conexao = await conectarAoBanco(); // Estabelecendo a conexão
+    }
+    return conexao; // Retorna a conexão estabelecida
+}
+
+export async function getTodosPosts() {
+    const db = await getConexao(); // Obtendo a conexão ao banco
+    const colecao = db.collection("posts"); // Acessando a coleção "posts"
+    return colecao.find().toArray(); // Retorna todos os posts
+}
+
+export async function criarPost(novoPost) {
+    const db = await getConexao(); // Obtendo a conexão ao banco
+    const colecao = db.collection("posts"); // Acessando a coleção "posts"
+    return colecao.insertOne(novoPost); // Inserindo um novo post
+}
+
+export async function atualizarPost(id, novoPost) {
+    const db = await getConexao(); // Obtendo a conexão ao banco
+    const colecao = db.collection("posts"); // Acessando a coleção "posts"
+    const obgID = ObjectId.createFromHexString(id); // Convertendo ID para o formato do MongoDB
+    return colecao.updateOne({ _id: new ObjectId(obgID) }, { $set: novoPost }); // Atualizando o post
+}
+
+export async function deletarPost(id) {
+    const db = await getConexao(); // Obtendo a conexão ao banco
+    const colecao = db.collection("posts"); // Acessando a coleção "posts"
+    const objID = ObjectId.createFromHexString(id); // Convertendo ID para o formato do MongoDB
+    return colecao.deleteOne({ _id: objID }); // Deletando o post
+}
+
+
+
+postRoutes:
+
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import passport from 'passport';
+import { configurePassport } from '../config/passportConfig.js';
+import multer from 'multer';
+import cors from 'cors';
+import { atualizarNovoPost, deletarPostPorId, listarPosts, postarNovoPost, uploadImagem, verificarUsuario } from '../controllers/postsController.js';
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/');
+    },
+    filename: function (req, file, cb) {
+        cb(null, file.originalname);
+    }
+});
+
+const upload = multer({ dest: './uploads', storage });
+
+const routes = (app) => {
+    app.use(express.json());
+    app.use(cors());
+    app.use(express.urlencoded({ extended: true }));
+    app.use('/uploads', express.static('uploads'));
+
+    // Configura o Passport
+    configurePassport(passport);
+    app.use(passport.initialize());
+
+    app.get("/posts", listarPosts);
+    app.post("/posts", passport.authenticate('jwt', { session: false }), postarNovoPost); // Protegendo a rota
+    app.post("/upload", upload.single("imagem"), passport.authenticate('jwt', { session: false }), uploadImagem);
+    app.put("/upload/:id", passport.authenticate('jwt', { session: false }), atualizarNovoPost); // Protegendo a rota
+    app.delete("/delete/:id", passport.authenticate('jwt', { session: false }), deletarPostPorId); // Protegendo a rota
+
+    app.post('/login', async (req, res) => {
+        const { username, password } = req.body;
+
+        try {
+            const usuario = await verificarUsuario(username, password);
+            if (!usuario) {
+                return res.status(401).json({ message: 'Autenticação falhou' });
+            }
+            // Gera o token JWT
+            const payload = { sub: usuario._id, name: usuario.username };
+            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+            // Verifica se o token foi gerado corretamente
+            console.log("Token gerado com sucesso");
+            const { authorization } = req.headers;
+            console.log("authorization: ", authorization)
+            return res.json({ token: `Bearer ${token}` });
+
+        } catch (err) {
+            console.error("Erro ao gerar token:", err);
+            return res.status(500).json({ message: 'Erro interno no servidor' });
+        }
+    });
+};
+
+export default routes;
+
+
+server.js:
+import express from "express";
+import routes from "./src/routes/postsRoutes.js";
+
+const app = express();
+app.use(express.static("uploads")) // tudo que tiver nessa pasta, sera acessado
+routes(app)
+
+app.listen(process.env.PORT, () => {
+    console.log("servidor rodando!")
+});

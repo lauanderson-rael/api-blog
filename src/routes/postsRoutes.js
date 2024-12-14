@@ -36,6 +36,7 @@ const routes = (app) => {
 
     app.post('/login', async (req, res) => {
         const { username, password } = req.body;
+
         try {
             const usuario = await verificarUsuario(username, password);
             if (!usuario) {
@@ -46,6 +47,8 @@ const routes = (app) => {
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
             // Verifica se o token foi gerado corretamente
             console.log("Token gerado com sucesso");
+            const { authorization } = req.headers;
+            console.log("authorization: ", authorization)
             return res.json({ token: `Bearer ${token}` });
 
         } catch (err) {
@@ -56,7 +59,6 @@ const routes = (app) => {
 };
 
 export default routes;
-
 
 
 // passport.authenticate('jwt', { session: false }),

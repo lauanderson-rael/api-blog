@@ -13,6 +13,7 @@ const options = {
 export function configurePassport(passport) {
     passport.use(
         new JwtStrategy(options, async (jwt_payload, done) => {
+            console.log('Payload JWT recebido:', jwt_payload);
             try {
                 // const client = new MongoClient(process.env.STRING_CONEXAO);
                 // await client.connect();
